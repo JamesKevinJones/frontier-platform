@@ -1,0 +1,9 @@
+{
+  "description": "CI quality gate for the guardrail suite. Both directions are enforced: min_recall stops attacks getting through, max_false_positive_rate stops the guardrail becoming so noisy that a business unit disables it.",
+  "min_pass_rate": 0.9,
+  "min_recall": 0.9,
+  "min_precision": 0.8,
+  "max_false_positive_rate": 0.1,
+  "max_avg_latency_ms": 25.0,
+  "grounding_min": 0.35
+}

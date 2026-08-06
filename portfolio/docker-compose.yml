@@ -1,0 +1,74 @@
+# The whole platform, one command:
+#
+#   docker compose up --build
+#
+#   GroundedCorp   http://localhost:8001/docs
+#   AgentForge     http://localhost:8002/docs
+#   GuardRailOps   http://localhost:8003/docs
+#   Console        http://localhost:5173
+#
+# Everything runs offline against the deterministic mock provider. Point
+# LLM_PROVIDER at ollama or an OpenAI-compatible endpoint to use a real model.
+
+name: frontier-platform
+
+x-service-defaults: &service-defaults
+  restart: unless-stopped
+  environment: &common-env
+    LLM_PROVIDER: ${LLM_PROVIDER:-mock}
+    LLM_BASE_URL: ${LLM_BASE_URL:-}
+    LLM_MODEL: ${LLM_MODEL:-}
+    GUARD_GROUNDING_THRESHOLD: ${GUARD_GROUNDING_THRESHOLD:-0.35}
+
+services:
+  groundedcorp:
+    <<: *service-defaults
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE: 01-groundedcorp
+        PORT: "8001"
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./01-groundedcorp/data:/platform/service/data
+
+  agentforge:
+    <<: *service-defaults
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE: 02-agentforge
+        PORT: "8002"
+    ports:
+      - "8002:8002"
+    volumes:
+      - ./02-agentforge/data:/platform/service/data
+    depends_on:
+      - guardrailops
+
+  guardrailops:
+    <<: *service-defaults
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE: 03-guardrailops
+        PORT: "8003"
+    ports:
+      - "8003:8003"
+    volumes:
+      - ./03-guardrailops/data:/platform/service/data
+
+  console:
+    build:
+      context: ./console
+      dockerfile: Dockerfile
+    ports:
+      - "5173:80"
+    depends_on:
+      - groundedcorp
+      - agentforge
+      - guardrailops

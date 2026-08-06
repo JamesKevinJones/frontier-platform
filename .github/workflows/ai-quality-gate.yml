@@ -1,0 +1,144 @@
+name: AI Quality Gate
+
+# The gate that makes the rest of the platform trustworthy.
+#
+# Ordinary CI proves the code runs. For an AI system that is not enough: the code
+# can be perfectly correct while the *system* silently gets worse — retrieval
+# quality slips, a guardrail starts blocking legitimate traffic, cost per query
+# doubles. So this pipeline runs the evaluation suites as build steps and fails
+# the build on a quality regression, exactly as it would on a failing unit test.
+#
+# Every job runs offline against the deterministic mock provider, so the gate needs
+# no API key and gives the same verdict on every machine.
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+env:
+  PYTHONUNBUFFERED: "1"
+  LLM_PROVIDER: mock
+
+jobs:
+  # -------------------------------------------------------------------------
+  # 1. The shared layer everything else imports.
+  # -------------------------------------------------------------------------
+  shared-contracts:
+    name: Shared layer contracts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: pip install pytest
+      - name: Guardrails, observability and LLM contract tests
+        working-directory: portfolio
+        run: python -m pytest tests -q
+
+  # -------------------------------------------------------------------------
+  # 2. RAG: unit tests, then the retrieval + answer quality gate.
+  # -------------------------------------------------------------------------
+  groundedcorp:
+    name: GroundedCorp (RAG quality)
+    runs-on: ubuntu-latest
+    needs: shared-contracts
+    defaults:
+      run:
+        working-directory: portfolio/01-groundedcorp
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: pip install -r requirements.txt
+      - name: Unit tests
+        run: python -m pytest -q
+      - name: Smoke
+        run: python -m app.smoke
+      - name: RAG quality gate
+        run: python -m app.gate
+      - name: Upload eval report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: groundedcorp-eval
+          path: portfolio/01-groundedcorp/eval-report.json
+          if-no-files-found: ignore
+
+  # -------------------------------------------------------------------------
+  # 3. Agents: determinism, budget enforcement, termination.
+  # -------------------------------------------------------------------------
+  agentforge:
+    name: AgentForge (agent behaviour)
+    runs-on: ubuntu-latest
+    needs: shared-contracts
+    defaults:
+      run:
+        working-directory: portfolio/02-agentforge
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: pip install -r requirements.txt
+      - name: Unit tests
+        run: python -m pytest -q
+      - name: Smoke
+        run: python -m app.smoke
+
+  # -------------------------------------------------------------------------
+  # 4. Governance: guardrail effectiveness, red team, and drift vs baseline.
+  # -------------------------------------------------------------------------
+  guardrailops:
+    name: GuardRailOps (guardrail + drift gate)
+    runs-on: ubuntu-latest
+    needs: shared-contracts
+    defaults:
+      run:
+        working-directory: portfolio/03-guardrailops
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: pip install -r requirements.txt
+      - name: Unit tests
+        run: python -m pytest -q
+      - name: Smoke
+        run: python -m app.smoke
+      - name: Guardrail quality gate and drift check
+        run: python -m app.gate
+      - name: Upload guardrail report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: guardrailops-eval
+          path: portfolio/03-guardrailops/eval-report.json
+          if-no-files-found: ignore
+
+  # -------------------------------------------------------------------------
+  # 5. The frontend that fronts all three.
+  # -------------------------------------------------------------------------
+  console:
+    name: Frontier Console (typecheck + build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: portfolio/console
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: portfolio/console/package-lock.json
+      - name: Install
+        run: npm ci || npm install
+      - name: Typecheck and build
+        run: npm run build

@@ -1,0 +1,95 @@
+[
+  {
+    "id": "pto-rate",
+    "question": "What is the PTO accrual rate for full-time employees?",
+    "dept": "hr",
+    "expect_doc_ids": ["hr-pto-2024"]
+  },
+  {
+    "id": "pto-carryover",
+    "question": "How many unused PTO days can carry over into the next year?",
+    "dept": "hr",
+    "expect_doc_ids": ["hr-pto-2024"]
+  },
+  {
+    "id": "hybrid-days",
+    "question": "How many days per week must hybrid employees work on site?",
+    "dept": "hr",
+    "expect_doc_ids": ["hr-remote-work-2025"]
+  },
+  {
+    "id": "expense-window",
+    "question": "What is the deadline for submitting an expense claim?",
+    "dept": "hr",
+    "expect_doc_ids": ["hr-expense-2025"]
+  },
+  {
+    "id": "mfa",
+    "question": "Do production systems require multi-factor authentication?",
+    "dept": "it",
+    "expect_doc_ids": ["it-access-control"]
+  },
+  {
+    "id": "device-encryption",
+    "question": "Is full disk encryption mandatory on corporate laptops?",
+    "dept": "it",
+    "expect_doc_ids": ["it-device-management"]
+  },
+  {
+    "id": "change-freeze",
+    "question": "When does the production change freeze apply?",
+    "dept": "it",
+    "expect_doc_ids": ["it-change-management"]
+  },
+  {
+    "id": "sev1",
+    "question": "How quickly must SEV-1 incidents be escalated to the Incident Commander?",
+    "dept": "security",
+    "expect_doc_ids": ["sec-incident-response"]
+  },
+  {
+    "id": "restricted-data",
+    "question": "What encryption is required for Restricted data at rest?",
+    "dept": "security",
+    "expect_doc_ids": ["sec-data-classification"]
+  },
+  {
+    "id": "critical-vuln-sla",
+    "question": "How many days do we have to remediate a critical vulnerability on an internet-facing system?",
+    "dept": "security",
+    "expect_doc_ids": ["sec-vulnerability-mgmt"]
+  },
+  {
+    "id": "ai-pii",
+    "question": "Can engineers paste customer PII into public LLM tools?",
+    "dept": "engineering",
+    "expect_doc_ids": ["eng-ai-usage"]
+  },
+  {
+    "id": "review-approvals",
+    "question": "How many approvals does a pull request touching authentication need?",
+    "dept": "engineering",
+    "expect_doc_ids": ["eng-code-review"]
+  },
+  {
+    "id": "oncall-ack",
+    "question": "How quickly must the primary on-call engineer acknowledge a page?",
+    "dept": "engineering",
+    "expect_doc_ids": ["eng-oncall"]
+  },
+  {
+    "id": "unk-sushi",
+    "question": "What is the cafeteria sushi menu for next Tuesday?",
+    "expect_refuse": true
+  },
+  {
+    "id": "unk-worldcup",
+    "question": "Who won the 1998 football World Cup final?",
+    "expect_refuse": true
+  },
+  {
+    "id": "unk-ceo-mobile",
+    "question": "What is the CEO's personal mobile number?",
+    "expect_refuse": true
+  }
+]

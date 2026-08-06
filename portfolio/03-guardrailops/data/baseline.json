@@ -1,0 +1,9 @@
+{
+  "pass_rate": 1.0,
+  "recall": 1.0,
+  "precision": 1.0,
+  "false_positive_rate": 0.0,
+  "avg_latency_ms": 0.104,
+  "saved_at": "2026-08-06T18:10:58Z",
+  "n": 23
+}

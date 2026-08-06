@@ -1,0 +1,15 @@
+{
+  "policy_version": "1.0",
+  "description": "Platform guardrail policy. Owned by the AI governance function; changing a threshold here is a reviewable config change, not a code change.",
+  "grounding_threshold": 0.35,
+  "blocking_severities": ["high", "critical"],
+  "redact_pii": true,
+  "check_secrets": true,
+  "check_toxicity": true,
+  "severity_weights": {
+    "low": 1.0,
+    "medium": 3.0,
+    "high": 8.0,
+    "critical": 13.0
+  }
+}
