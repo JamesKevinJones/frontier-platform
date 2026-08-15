@@ -342,6 +342,12 @@ implemented directly. Not to avoid libraries, but because the interesting parts 
 an AI framework are the parts you have to reason about in production, and writing
 them out makes those decisions explicit, testable, and defensible in a review.
 
+## Elsewhere
+
+Part of [my portfolio](https://portfolio-website-eight-kappa-iwtiz3w2ef.vercel.app),
+which introduces each project by the thing it refuses to do. This one refuses to
+answer when the evidence is weak.
+
 <div align="center">
 <sub>Built by <a href="https://github.com/JamesKevinJones">James Kevin Jones</a></sub>
 </div>
