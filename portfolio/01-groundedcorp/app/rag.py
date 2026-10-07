@@ -237,19 +237,21 @@ def ask(
         structured_payload: StructuredAnswer | None = None
         usage = Usage(model=getattr(provider, "model", provider.name))
 
-        cache_key = cache.make_key(
+        # Scope is everything an answer depends on except the wording of the
+        # question; the semantic tier only reuses answers within one scope.
+        cache_scope = cache.make_key(
             provider.name,
             getattr(provider, "model", ""),
             dept or "",
             str(structured),
             "|".join(f"{c['doc_id']}#{c.get('chunk_index', 0)}" for c in contexts),
-            question.strip().lower(),
         )
+        cache_key = cache.make_key(cache_scope, question.strip().lower())
 
         cached_answer = None
         if CACHE_ENABLED and use_cache:
             with tracer.span("cache.lookup"):
-                cached_answer, cache_state = cache.get(cache_key, embed_text(question))
+                cached_answer, cache_state = cache.get(cache_key, embed_text(question), cache_scope)
                 tracer.incr(f"cache.{cache_state}")
 
         if cached_answer is not None:
@@ -278,7 +280,7 @@ def ask(
                 span.set_attribute("answer.length", len(answer))
                 span.set_attribute("cost_usd", usage.cost_usd)
             if CACHE_ENABLED and use_cache:
-                cache.put(cache_key, answer, embed_text(question))
+                cache.put(cache_key, answer, embed_text(question), cache_scope)
             cache_state = cache_state if cache_state != "disabled" else "miss"
 
         tracer.observe("llm.cost_usd", usage.cost_usd)

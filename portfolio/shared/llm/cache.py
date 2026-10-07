@@ -7,7 +7,9 @@ re-running a demo) at zero risk. Semantic matching catches paraphrases — "PTO
 accrual rate?" vs "how much PTO do I accrue?" — which is where most of the real
 saving is, but it can serve a subtly wrong answer if the threshold is loose. So
 the semantic tier is gated on a deliberately high cosine threshold (0.93 default)
-and every hit is labelled in the response, never silently.
+and every hit is labelled in the response, never silently. It also only compares
+entries in the same *scope* (department, provider, retrieved chunks): a paraphrase
+may reuse an answer grounded on the same evidence, never one from another scope.
 
 Entries are TTL'd because grounded answers go stale when the corpus is re-ingested.
 """
@@ -33,6 +35,7 @@ class CacheEntry:
     value: str
     embedding: list[float] | None
     created_at: float
+    scope: str = ""
 
     def expired(self, ttl: float) -> bool:
         return (time.time() - self.created_at) > ttl
@@ -71,6 +74,7 @@ class ResponseCache:
         self,
         key: str,
         embedding: list[float] | None = None,
+        scope: str = "",
     ) -> tuple[str | None, str]:
         """Return ``(value, hit_kind)`` where hit_kind is exact | semantic | miss."""
         with self._lock:
@@ -85,7 +89,7 @@ class ResponseCache:
             if embedding:
                 best, best_sim = None, 0.0
                 for candidate in self._store.values():
-                    if not candidate.embedding:
+                    if not candidate.embedding or candidate.scope != scope:
                         continue
                     sim = _cosine(embedding, candidate.embedding)
                     if sim > best_sim:
@@ -97,10 +101,20 @@ class ResponseCache:
             self.misses += 1
             return None, "miss"
 
-    def put(self, key: str, value: str, embedding: list[float] | None = None) -> None:
+    def put(
+        self,
+        key: str,
+        value: str,
+        embedding: list[float] | None = None,
+        scope: str = "",
+    ) -> None:
         with self._lock:
             self._store[key] = CacheEntry(
-                key=key, value=value, embedding=embedding, created_at=time.time()
+                key=key,
+                value=value,
+                embedding=embedding,
+                created_at=time.time(),
+                scope=scope,
             )
             self._store.move_to_end(key)
             while len(self._store) > self.max_entries:
@@ -111,12 +125,13 @@ class ResponseCache:
         key: str,
         compute: Callable[[], str],
         embedding: list[float] | None = None,
+        scope: str = "",
     ) -> tuple[str, str]:
-        value, kind = self.get(key, embedding)
+        value, kind = self.get(key, embedding, scope)
         if value is not None:
             return value, kind
         value = compute()
-        self.put(key, value, embedding)
+        self.put(key, value, embedding, scope)
         return value, "miss"
 
     def _evict_expired(self) -> None:
