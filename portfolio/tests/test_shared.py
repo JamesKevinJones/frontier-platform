@@ -174,6 +174,22 @@ def test_provider_selection_defaults_to_mock():
         get_provider("no-such-provider")
 
 
+def test_timeout_is_not_retried(monkeypatch):
+    # A timeout already spent the whole budget on a slow dependency; retrying
+    # it tripled a hung request to ~3 minutes and piled load on the server.
+    calls = []
+
+    def hang(*args, **kwargs):
+        calls.append(1)
+        raise TimeoutError("timed out")
+
+    monkeypatch.setattr("urllib.request.urlopen", hang)
+    provider = get_provider("openai-compatible", base_url="http://llm.invalid/v1")
+    text, _ = provider.generate_with_usage("q", [{"text": "ctx", "title": "t"}])
+    assert len(calls) == 1
+    assert "unavailable" in text
+
+
 def test_openai_compatible_requires_base_url():
     with pytest.raises(ValueError):
         get_provider("openai-compatible", base_url="")
@@ -240,6 +256,16 @@ def test_cache_semantic_hit_requires_high_similarity():
     cache.put("k1", "answer", embedding=[1.0, 0.0, 0.0])
     assert cache.get("k2", embedding=[0.99, 0.05, 0.0])[1] == "semantic"
     assert cache.get("k3", embedding=[0.0, 1.0, 0.0])[1] == "miss"
+
+
+def test_cache_semantic_hit_never_crosses_scope():
+    # A paraphrase may reuse an answer only if it was grounded on the same
+    # department, provider and retrieved chunks; otherwise the response would
+    # cite this query's sources next to an answer built from different ones.
+    cache = ResponseCache(similarity_threshold=0.9)
+    cache.put("k1", "hr answer", embedding=[1.0, 0.0, 0.0], scope="dept=hr")
+    assert cache.get("k2", embedding=[0.99, 0.05, 0.0], scope="dept=eng")[1] == "miss"
+    assert cache.get("k2", embedding=[0.99, 0.05, 0.0], scope="dept=hr")[1] == "semantic"
 
 
 def test_cache_evicts_beyond_capacity():

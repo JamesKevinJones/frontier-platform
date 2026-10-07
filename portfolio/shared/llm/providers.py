@@ -13,7 +13,8 @@ Every provider supports four call shapes:
     generate_structured()   -> dict                    (structured outputs)
     stream()                -> Iterator[str]           (token streaming)
 
-Reliability: network providers retry idempotent failures with exponential backoff
+Reliability: network providers retry transient failures (connection errors, 429, 5xx;
+not timeouts, which already spent the budget) with exponential backoff
 and jitter, and surface a typed error rather than raising into the request path —
 a degraded answer beats a 500 for a user-facing assistant.
 """
@@ -215,6 +216,12 @@ class OpenAICompatibleProvider(LLMProvider):
                     break
             except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
                 last_error = exc
+                # A timeout already spent the whole budget on a slow server;
+                # retrying it multiplies the wait and the server's load.
+                if isinstance(exc, TimeoutError) or isinstance(
+                    getattr(exc, "reason", None), TimeoutError
+                ):
+                    break
 
             if attempt < self.max_retries - 1:
                 backoff = (2**attempt) * 0.5 + random.uniform(0, 0.25)
