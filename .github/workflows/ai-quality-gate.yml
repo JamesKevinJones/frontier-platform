@@ -33,7 +33,9 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install
-        run: pip install pytest
+        # The observability middleware imports starlette, so the shared layer
+        # needs the services' pinned FastAPI, not just pytest.
+        run: pip install -r portfolio/01-groundedcorp/requirements.txt
       - name: Guardrails, observability and LLM contract tests
         working-directory: portfolio
         run: python -m pytest tests -q
