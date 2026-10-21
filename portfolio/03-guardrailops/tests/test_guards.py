@@ -1,6 +1,7 @@
 import pytest
 from fastapi.testclient import TestClient
 
+from app import eval_runner
 from app.eval_runner import compare_to_baseline, evaluate_gate, run_eval
 from app.guards import validate
 from app.main import app
@@ -181,6 +182,35 @@ def test_baseline_comparison_shape():
     report = compare_to_baseline()
     assert "regressed" in report
     assert isinstance(report["regressed"], bool)
+
+
+BASELINE_RUN = {
+    "pass_rate": 1.0,
+    "recall": 1.0,
+    "precision": 1.0,
+    "false_positive_rate": 0.0,
+    "avg_latency_ms": 0.104,
+    "n": 23,
+}
+
+
+def test_sub_millisecond_latency_jitter_is_not_a_regression(tmp_path, monkeypatch):
+    # A busy CI runner doubling a 0.1 ms guardrail pass is noise, not a slide.
+    monkeypatch.setattr(eval_runner, "BASELINE", tmp_path / "baseline.json")
+    eval_runner.save_baseline(BASELINE_RUN)
+    report = compare_to_baseline({**BASELINE_RUN, "avg_latency_ms": 0.24})
+    assert report["regressed"] is False
+
+
+@pytest.mark.parametrize(
+    "change",
+    [{"avg_latency_ms": 2.5}, {"recall": 0.95}, {"false_positive_rate": 0.05}],
+)
+def test_real_slides_are_still_regressions(tmp_path, monkeypatch, change):
+    monkeypatch.setattr(eval_runner, "BASELINE", tmp_path / "baseline.json")
+    eval_runner.save_baseline(BASELINE_RUN)
+    report = compare_to_baseline({**BASELINE_RUN, **change})
+    assert report["regressed"] is True
 
 
 # --- API ----------------------------------------------------------------------
