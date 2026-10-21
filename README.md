@@ -360,10 +360,14 @@ matching paraphrases across departments, so an answer grounded on one department
 chunks could be served to another and shown under the current query's citations.
 Cache entries now carry a scope (provider, model, department, output format,
 retrieved chunk ids), and a test pins it. Polishing
-this repo for review turned up one more: the drift check compared every metric
+this repo for review turned up two more. The drift check compared every metric
 against one absolute tolerance of 0.03, which on a 0.1 ms latency means 30
 microseconds, so a busy runner could fail the guardrail gate with no guardrail
-change. Latency now has its own 1 ms tolerance, with tests for both sides.
+change; latency now has its own 1 ms tolerance, with tests for both sides. And the
+one-command quickstart had only ever run on Docker Desktop for Windows: on Linux the
+services, which run as an unprivileged user, could not write to the bind-mounted
+`data/` folders, so GroundedCorp crash-looped on its SQLite file. Named volumes fixed
+it, and the quickstart is now checked from a fresh clone on Linux.
 
 ## Limitations and next steps
 
