@@ -8,3 +8,4 @@ data/chroma/
 data/*.db
 _deps/
 .DS_Store
+*.tsbuildinfo
