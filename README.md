@@ -11,12 +11,17 @@ and the guardrail library both of them import — wired to an evaluation suite t
 [![AI Quality Gate](https://github.com/JamesKevinJones/frontier-platform/actions/workflows/ai-quality-gate.yml/badge.svg)](https://github.com/JamesKevinJones/frontier-platform/actions/workflows/ai-quality-gate.yml)
 ![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12-1B2632?labelColor=0B1016)
 ![React](https://img.shields.io/badge/react-18%20%2B%20TypeScript-1B2632?labelColor=0B1016)
-![Tests](https://img.shields.io/badge/tests-99%20passing-3FD0C9?labelColor=0B1016)
 ![No API key required](https://img.shields.io/badge/runs%20offline-no%20API%20key-FFB020?labelColor=0B1016)
+[![License: MIT](https://img.shields.io/badge/license-MIT-1B2632?labelColor=0B1016)](LICENSE)
 
 **[Live console →](https://frontier-platform-lovat.vercel.app)**  ·  [Quickstart](#quickstart)  ·  [Architecture](#how-it-fits-together)  ·  [What each service proves](#the-three-services)
 
 </div>
+
+![Frontier Console overview, running live against the three local services](docs/img/console-overview.png)
+
+<sub>The console driving the real services locally (all three lamps green, "Live" in the rail).
+The hosted link above has no backend, so it serves recorded fixtures and labels itself "Demo data".</sub>
 
 ---
 
@@ -101,6 +106,14 @@ question answered by GroundedCorp and validated by GuardRailOps shares one trace
 Not aspirational — this is what `python -m app.gate` prints on the committed corpus,
 and what CI enforces on every push.
 
+**Provenance.** Measured 21 Oct 2026 at commit `c32025a` on a Windows 11 laptop
+(i5-13420H, Python 3.12.14), `LLM_PROVIDER=mock`, cost $0.00 per run. Reproduce with
+`python -m app.gate` inside `portfolio/01-groundedcorp` and `portfolio/03-guardrailops`.
+The answers come from the deterministic **extractive mock provider**, so these numbers
+measure the pipeline (retrieval, gating, guardrails), not a language model. Faithfulness
+is an offline proxy: the share of the answer's content words found in the retrieved
+evidence, not an NLI judge.
+
 ### Retrieval quality · 12 documents, 16 golden questions
 
 | Metric | Result | Gate | Why it matters |
@@ -111,7 +124,7 @@ and what CI enforces on every push.
 | MRR | **1.00** | ≥ 0.75 | The right document is ranked *first*, every time |
 | Faithfulness | **0.580** | ≥ 0.30 | Answer content is supported by retrieved evidence |
 | Refusal rate | **0.188** | — | Exactly the 3 of 16 questions the corpus cannot answer |
-| p95 latency | **3.8 ms** | ≤ 2500 ms | End to end, per question |
+| p95 latency | **14.1 ms** | ≤ 2500 ms | End to end, per question; median of 5 runs, range 12.9–15.1 ms |
 
 > Precision@k started at **0.51**. Rank-based fusion was discarding score magnitude,
 > so a passage outscoring the field 14× on BM25 ranked barely above noise. Re-admitting
@@ -125,6 +138,7 @@ and what CI enforces on every push.
 | Recall (attacks caught) | **1.00** | ≥ 0.90 |
 | Precision | **1.00** | ≥ 0.80 |
 | **False positive rate** | **0.00** | ≤ 0.10 |
+| Avg latency per check | **0.08–0.12 ms** | drift ≤ +1 ms vs baseline |
 
 |  | Guardrail fired | Guardrail allowed |
 |---|---:|---:|
@@ -210,6 +224,8 @@ Retrieval is where RAG quality is won or lost, so every stage earns its place:
 | **Relevance floor** | Drops candidates below 65% of the best | Padding citations with near-misses trains users to stop reading citations |
 | **Token budget** | Caps the context window | An unbounded window is a cost, latency *and* recall regression |
 
+![An answerable question gets a grounded, cited answer; an out-of-corpus question is refused with its reason](docs/img/retrieval-flow.gif)
+
 Then the gate. **Three independent floors, so refusals are explainable:**
 
 ```jsonc
@@ -240,6 +256,8 @@ START → triage → research → policy → resolver → critic ─┬→ END
 - **Adversarial by construction.** The critic is a separate node from the resolver, because a single-pass agent has no mechanism to catch its own omission. One repair loop, then escalate.
 - **Replayable.** Append-only JSONL per ticket. The interesting failures are runs that looped, revised, then looked fine — an overwritten record hides exactly what you need.
 
+![A VPN-outage ticket resolved through all five agents at 24% of its cost budget](docs/img/console-agents.png)
+
 ### 🛡️ GuardRailOps — the governance plane
 
 Five controls, each with a severity and an action, all policy-driven from `policy.json`:
@@ -261,6 +279,8 @@ Three decisions worth defending:
 Plus drift detection against a frozen baseline, because absolute gates catch a
 collapse but not the slow slide.
 
+![The guardrail gate run from the console: 23 cases, 11 attacks caught, 0 safe requests blocked](docs/img/console-guardrails.png)
+
 ### 📊 Frontier Console — making the invisible visible
 
 <div align="center">
@@ -274,6 +294,8 @@ and that tree is the clearest answer to *what did the system actually do, and wh
 did the time go*. Rendered on a shared time axis, so duration and nesting read from
 position alone.
 
+![A refusal with its trace: retrieval took 6.8 ms, the grounding gate refused, the output guard ran last](docs/img/console-refusal.png)
+
 The console also shows the query rewrite (watch `PTO` expand to `paid time off ·
 leave · vacation · accrual`), the pipeline stage rail, per-citation BM25/rerank/dense
 breakdowns, the agent trajectory with tool calls, and the guardrail confusion matrix.
@@ -286,19 +308,31 @@ breakdowns, the agent trajectory with tool calls, and the guardrail confusion ma
 
 ## Testing and CI
 
-**99 tests.** Not coverage theatre — they encode the behaviours that are expensive
+**105 tests.** Not coverage theatre — they encode the behaviours that are expensive
 to get wrong:
 
 ```
-portfolio/tests             32  shared contracts: traceparent round-trip, policy-as-data,
-                                bounded span buffers, cache eviction, Luhn/Verhoeff
+portfolio/tests             34  shared contracts: traceparent round-trip, policy-as-data,
+                                bounded span buffers, cache scoping and eviction, Luhn/Verhoeff
 01-groundedcorp/tests       16  BM25 IDF ordering, rerank proximity, MMR dedup,
                                 token budget, precision gate, cache hits, drift
 02-agentforge/tests         19  triage precedence, budget-between-nodes, termination,
                                 circuit breaker opens, retry succeeds, replay is append-only
-03-guardrailops/tests       32  six injection variants, direction scoping, checksum
-                                gating, policy override, gate fails on high FPR
+03-guardrailops/tests       36  six injection variants, direction scoping, checksum
+                                gating, policy override, gate fails on high FPR,
+                                drift ignores latency jitter but catches a real slide
 ```
+
+Run every suite and both quality gates the way CI does. One venv is enough:
+GroundedCorp's pinned requirements are a superset of the other two.
+
+```bash
+cd portfolio && pip install -r 01-groundedcorp/requirements.txt
+python -m pytest tests -q && for s in 01-groundedcorp 02-agentforge 03-guardrailops; do (cd $s && python -m pytest -q && python -m app.smoke) || break; done
+(cd 01-groundedcorp && python -m app.gate) && (cd 03-guardrailops && python -m app.gate)
+```
+
+No test calls a network or a model: the default provider is the deterministic mock.
 
 ```mermaid
 flowchart LR
@@ -310,6 +344,44 @@ flowchart LR
 
 Shared contracts run first: if the guardrails or tracer break, all three services
 break, so failing fast there saves three redundant downstream failures.
+
+---
+
+## What broke, and what it taught me
+
+The pipeline that "fails the build when quality drops" was itself red for two months.
+From 6 Aug to 7 Oct 2026 the shared-contracts job installed only pytest, the
+observability middleware imports starlette, so test collection died with
+`ModuleNotFoundError` and every downstream gate was skipped. The CI badge at the top
+of this README showed failing for that whole stretch. The fix was one line (install
+the services' pinned requirements); the lesson was that a quality gate only protects
+you if someone reads its result. In the same pass I found the semantic cache
+matching paraphrases across departments, so an answer grounded on one department's
+chunks could be served to another and shown under the current query's citations.
+Cache entries now carry a scope (provider, model, department, output format,
+retrieved chunk ids), and a test pins it. Polishing
+this repo for review turned up one more: the drift check compared every metric
+against one absolute tolerance of 0.03, which on a 0.1 ms latency means 30
+microseconds, so a busy runner could fail the guardrail gate with no guardrail
+change. Latency now has its own 1 ms tolerance, with tests for both sides.
+
+## Limitations and next steps
+
+- **Every published number is from the mock provider.** It is extractive and cannot
+  hallucinate, which isolates the pipeline but says nothing about a real model's
+  faithfulness. Next: run the same gate with `LLM_PROVIDER=ollama` and publish that
+  table next to this one.
+- **The eval set is small.** 12 synthetic policy documents, 16 golden questions and
+  23 guardrail cases. Perfect scores on a set that size show the pipeline behaves,
+  not that it generalises.
+- **Faithfulness is a lexical proxy**, not an NLI or LLM judge, chosen so CI needs no
+  model and no key.
+- **Hashing embeddings, not a trained encoder.** Acronym expansion and BM25 carry
+  most of the retrieval quality; a real embedding model would change the numbers.
+- **`docker compose` forwards `LLM_PROVIDER`, `LLM_BASE_URL`, `LLM_MODEL` and
+  `GUARD_GROUNDING_THRESHOLD` but not `LLM_API_KEY`**, so a keyed
+  OpenAI-compatible endpoint works only when the services run outside Docker.
+- **The hosted console has no backend.** It is the same UI over recorded fixtures.
 
 ---
 
@@ -341,6 +413,10 @@ MMR, hashing embeddings, cosine similarity, Luhn, Verhoeff and the span tracer a
 implemented directly. Not to avoid libraries, but because the interesting parts of
 an AI framework are the parts you have to reason about in production, and writing
 them out makes those decisions explicit, testable, and defensible in a review.
+
+## Licence
+
+MIT. See [LICENSE](LICENSE).
 
 ## Elsewhere
 
