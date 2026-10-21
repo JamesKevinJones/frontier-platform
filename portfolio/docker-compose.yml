@@ -9,6 +9,12 @@
 #
 # Everything runs offline against the deterministic mock provider. Point
 # LLM_PROVIDER at ollama or an OpenAI-compatible endpoint to use a real model.
+#
+# Service data lives in named volumes, not bind mounts. The services run as
+# uid 10001, and a Linux bind mount keeps the host directory's owner, so they
+# could not write their SQLite files or run logs. Docker seeds each new volume
+# from the image's data/ directory. After changing a corpus, reset with
+# `docker compose down -v`.
 
 name: frontier-platform
 
@@ -32,7 +38,7 @@ services:
     ports:
       - "8001:8001"
     volumes:
-      - ./01-groundedcorp/data:/platform/service/data
+      - groundedcorp-data:/platform/service/data
 
   agentforge:
     <<: *service-defaults
@@ -45,7 +51,7 @@ services:
     ports:
       - "8002:8002"
     volumes:
-      - ./02-agentforge/data:/platform/service/data
+      - agentforge-data:/platform/service/data
     depends_on:
       - guardrailops
 
@@ -60,7 +66,7 @@ services:
     ports:
       - "8003:8003"
     volumes:
-      - ./03-guardrailops/data:/platform/service/data
+      - guardrailops-data:/platform/service/data
 
   console:
     build:
@@ -72,3 +78,8 @@ services:
       - groundedcorp
       - agentforge
       - guardrailops
+
+volumes:
+  groundedcorp-data:
+  agentforge-data:
+  guardrailops-data:
