@@ -170,6 +170,9 @@ WATCHED = {
     "avg_latency_ms": False,
 }
 TOLERANCE = 0.03
+# Latency is in milliseconds, not a 0-1 rate: 0.03 ms is scheduler jitter on a
+# shared CI runner. A guardrail pass that gets a whole millisecond slower is a slide.
+TOLERANCES = {"avg_latency_ms": 1.0}
 
 
 def load_baseline() -> dict | None:
@@ -205,7 +208,8 @@ def compare_to_baseline(summary: dict | None = None) -> dict:
         if before is None or after is None:
             continue
         change = round(after - before, 6)
-        worse = (change < -TOLERANCE) if higher_is_better else (change > TOLERANCE)
+        tolerance = TOLERANCES.get(metric, TOLERANCE)
+        worse = (change < -tolerance) if higher_is_better else (change > tolerance)
         deltas[metric] = {
             "baseline": before,
             "current": after,
